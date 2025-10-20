@@ -36,6 +36,57 @@ const webpackConfig = {
     },
     configure: (webpackConfig) => {
 
+      const compatBabelLoaderPath = path.resolve(
+        __dirname,
+        'webpack-compat/babel-loader'
+      );
+
+      const replaceBabelLoader = (rule) => {
+        if (!rule) {
+          return;
+        }
+
+        const updateEntry = (entry) => {
+          if (typeof entry === 'string' && entry.includes('babel-loader')) {
+            return compatBabelLoaderPath;
+          }
+
+          if (entry && entry.loader && entry.loader.includes('babel-loader')) {
+            entry.loader = compatBabelLoaderPath;
+          }
+
+          return entry;
+        };
+
+        if (rule.loader && rule.loader.includes('babel-loader')) {
+          rule.loader = compatBabelLoaderPath;
+        }
+
+        if (Array.isArray(rule.use)) {
+          rule.use = rule.use.map((item) => updateEntry(item));
+        } else if (rule.use) {
+          rule.use = updateEntry(rule.use);
+        }
+      };
+
+      const walkRules = (rules) => {
+        if (!Array.isArray(rules)) {
+          return;
+        }
+
+        rules.forEach((rule) => {
+          replaceBabelLoader(rule);
+
+          if (rule.oneOf) {
+            walkRules(rule.oneOf);
+          }
+        });
+      };
+
+      if (webpackConfig.module && webpackConfig.module.rules) {
+        walkRules(webpackConfig.module.rules);
+      }
+
       // Disable hot reload completely if environment variable is set
       if (config.disableHotReload) {
         // Remove hot reload related plugins
